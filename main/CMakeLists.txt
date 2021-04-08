@@ -22,7 +22,3 @@ idf_component_register(
                                 	"certs/prvtkey.pem")
 
 
-#					"www/style.css.gz"
-#					"www/main.js.gz"
-#					"www/favicon.ico.gz"
-#					"www/jquery.slim.min.js.gz"
