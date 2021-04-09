@@ -20,6 +20,12 @@ struct async_resp_arg {
     int fd;
 };
 
+struct sessionContext {
+    unsigned int notSeenCount;
+};
+
+
+
 /*
  * async send function, which we put into the httpd work queue
  */
