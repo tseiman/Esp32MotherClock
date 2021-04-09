@@ -22,8 +22,8 @@ struct async_resp_arg {
 
 struct sessionContext {
     unsigned int notSeenCount;
-};
-
+} sessionContext;
+typedef struct sessionContext* sessionContext_t;
 
 
 /*
@@ -57,11 +57,12 @@ static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req) {
  */
 static esp_err_t echo_handler(httpd_req_t *req) {
 
-    char * contxtdata = "Some bla bla";
+    if(req->sess_ctx == NULL) {
+         sessionContext_t sessContext = (sessionContext_t)malloc(sizeof(sessionContext));  
+         sessContext->notSeenCount = 0;
+         req->sess_ctx = sessContext;
+    }
 
-        ESP_LOGE(TAG, "user ctx: %s", req->sess_ctx == NULL ? "NULL" : (char *)req->sess_ctx);
-
- req->sess_ctx = contxtdata;
 
     if (req->method == HTTP_GET) {
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
