@@ -67,7 +67,6 @@ httpd_handle_t start_static_webserver(void) {
     httpd_ssl_config_t conf = HTTPD_SSL_CONFIG_DEFAULT();
     conf.httpd.stack_size = 16384;
 
-
     extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
     extern const unsigned char cacert_pem_end[]   asm("_binary_cacert_pem_end");
     conf.cacert_pem = cacert_pem_start;
