@@ -15,22 +15,26 @@ body {
 	</script>
 	<script language="javascript" type="text/javascript">
 
-console.log("Hello");
-/*
-var ws = new WebSocket("wss://" + location.host + "/ws");
+	    console.log("Hello");
 
-ws.onerror = function(event) {
-  console.error("WebSocket error observed:", event);
-};
+	    var ws = new WebSocket("wss://" + location.host + "/ws");
 
-ws.onmessage = function (event) {
-  console.log(event.data);
-}
+	    ws.onerror = function(event) {
+		console.error("WebSocket error observed:", event);
+	    };
 
-function wsSend(data) {
-    ws.send(data);
-}
-*/
+	    ws.onmessage = function (event) {
+		console.log(event.data);
+	    }
+
+	    function wsSend(data) {
+		ws.send(data);
+	    }
+
+	    $(window).bind('beforeunload', function(){
+		console.log("closing ws");
+		ws.close();
+	    });
 
 	</script>
     </head>
