@@ -1,6 +1,11 @@
 menu "Esp32 Mother Clock Configuration"
 
 
+    config MCLK_MAX_CLIENTS
+        int "Max Clients"
+        default 3
+        help
+            Set the maximum clinets can connect.
 
 
     choice MCLK_USE_ETHERNET

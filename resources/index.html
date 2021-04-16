@@ -20,15 +20,18 @@
 	    var ws = new WebSocket("wss://" + location.host + "/ws");
 
 	    ws.onerror = function(event) {
-		console.error("WebSocket error observed:", event);
+			console.error("WebSocket error observed:", event);
 	    };
 
 	    ws.onmessage = function (event) {
-		console.log(event.data);
+			console.log(event.data);
+			if(event.data.normalize() === "PING" ) {
+				wsSend("PONG");
+			}
 	    }
 
 	    function wsSend(data) {
-		ws.send(data);
+			ws.send(data);
 	    }
 
 /*	    $(window).bind('beforeunload', function(){

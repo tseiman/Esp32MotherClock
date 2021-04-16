@@ -17,15 +17,16 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #include <esp_system.h>
-// #include <nvs_flash.h>
 #include <sys/param.h>
-// #include "esp_netif.h"
-// #include "esp_eth.h"
 
 #include <esp_https_server.h>
-// #include "websocket.h"
+
+
+#define HTTPS_SERVER_STACK_SIZE 32767; //16384
+
 
 static const char *TAG = "Esp32MotherClock.https";
+
 
 
 
@@ -36,6 +37,7 @@ static esp_err_t HANDLER_NAME(httpd_req_t *req){ \
     size_t gz_len = HANDLER_NAME##_gz_end - HANDLER_NAME##_gz_start; \
     httpd_resp_set_type(req, CONTENT_TYPE); \
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip"); \
+    httpd_resp_set_hdr(req, "Connection", "close"); \
     return httpd_resp_send(req, (const char *)HANDLER_NAME##_gz_start, gz_len); \
 }
 
@@ -65,7 +67,8 @@ httpd_handle_t start_static_webserver(void) {
     ESP_LOGI(TAG, "Starting server");
 
     httpd_ssl_config_t conf = HTTPD_SSL_CONFIG_DEFAULT();
-    conf.httpd.stack_size = 16384;
+    conf.httpd.stack_size = HTTPS_SERVER_STACK_SIZE; 
+//    conf.httpd.max_open_sockets = CONFIG_MCLK_MAX_CLIENTS * 2;
 
     extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
     extern const unsigned char cacert_pem_end[]   asm("_binary_cacert_pem_end");
