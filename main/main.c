@@ -31,6 +31,7 @@
 
 #include "staticHttpServer.h"
 #include "websocket.h"
+#include "filesystem.h"
 
 static const char *TAG = "Esp32MotherClock.main";
 
@@ -57,8 +58,10 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
     if (*server != NULL) {
         start_wss(*server);
     } else {
-	ESP_LOGW(TAG, "Static Server handler was NULL - can't start WSS");
+	   ESP_LOGW(TAG, "Server handler was NULL - can't start WSS");
+       return;
     }
+    registerStaticResources(*server);
 }
 
 
@@ -119,6 +122,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    init_fs();
 
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);

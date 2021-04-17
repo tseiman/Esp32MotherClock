@@ -18,3 +18,4 @@
 httpd_handle_t start_static_webserver(void);
 
 void stop_static_webserver(httpd_handle_t server);
+void registerStaticResources(httpd_handle_t server);
