@@ -21,6 +21,8 @@
 
 #include <esp_https_server.h>
 
+#include "httpAuthentication.h"
+
 
 #define HTTPS_SERVER_STACK_SIZE 32767; //16384
 
@@ -68,6 +70,7 @@ httpd_handle_t start_static_webserver(void) {
 
     httpd_ssl_config_t conf = HTTPD_SSL_CONFIG_DEFAULT();
     conf.httpd.stack_size = HTTPS_SERVER_STACK_SIZE; 
+    conf.httpd.lru_purge_enable = true;
 //    conf.httpd.max_open_sockets = CONFIG_MCLK_MAX_CLIENTS * 2;
 
     extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
@@ -91,6 +94,7 @@ httpd_handle_t start_static_webserver(void) {
 
     httpd_register_uri_handler(server, &indexroot);
     httpd_register_uri_handler(server, &indexhtml);
+//    httpd_register_basic_auth(server);
 // start_wss(server);
     return server;
 }

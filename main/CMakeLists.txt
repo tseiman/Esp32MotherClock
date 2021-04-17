@@ -17,6 +17,7 @@ endif()
 idf_component_register(
 		    SRCS 		"main.c"
 					"staticHttpServer.c"
+					"httpAuthentication.c"
 					"websocket.c"
                     INCLUDE_DIRS 	"."
 		    EMBED_FILES		"www/index.html.gz"
