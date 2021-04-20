@@ -41,31 +41,15 @@ static char scratch[SCRATCH_BUFSIZE];
 static const char *TAG = "Esp32MotherClock.https";
 
 
-
-
-/*
-#define STATIC_RESOURCE_HANDLER(DATA_NAME, HANDLER_NAME, CONTENT_TYPE) \
-static esp_err_t HANDLER_NAME(httpd_req_t *req){ \
-    extern const unsigned char HANDLER_NAME##_gz_start[] asm("_binary_"DATA_NAME"_gz_start"); \
-    extern const unsigned char HANDLER_NAME##_gz_end[]   asm("_binary_"DATA_NAME"_gz_end"); \
-    size_t gz_len = HANDLER_NAME##_gz_end - HANDLER_NAME##_gz_start; \
-    httpd_resp_set_type(req, CONTENT_TYPE); \
-    httpd_resp_set_hdr(req, "Content-Encoding", "gzip"); \
-    httpd_resp_set_hdr(req, "Connection", "close"); \
-    return httpd_resp_send(req, (const char *)HANDLER_NAME##_gz_start, gz_len); \
-}
-*/
-//     httpd_resp_set_hdr(req, "Connection", "keep-alive"); 
-/*
-#define REGISTER_STATIC_RESOURCE(NAME,URI,HANDLER_NAME) \
+#define REGISTER_STATIC_RESOURCE(NAME,URI) \
 static const httpd_uri_t NAME = { \
     .uri       = URI, \
     .method    = HTTP_GET, \
-    .handler   = HANDLER_NAME, \
+    .handler   = common_get_handler, \
     .user_ctx   = NULL, \
     .is_websocket = false \
-};
-*/
+}; \
+httpd_register_uri_handler(server, &NAME);
 
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
@@ -105,6 +89,14 @@ static esp_err_t common_get_handler(httpd_req_t *req) {
         strlcat(filepath, req->uri, sizeof(filepath));
     }
     set_content_type_from_file(req, filepath);
+
+
+    for(int i=0;filepath[i]!='\0';i++) {        // let's not take care about URL parameter here
+        if(filepath[i]== '?') {
+            filepath[i] = '\0';
+            break;
+        }
+    }
 
     strlcat(filepath, ".gz", sizeof(filepath));
 
@@ -152,15 +144,11 @@ httpd_uri_t common_get_uri = {
         .uri = "/*",
         .method = HTTP_GET,
         .handler = common_get_handler,
-        .user_ctx = NULL
+        .user_ctx   = NULL, 
+        .is_websocket = false 
 };
 
-/*
-STATIC_RESOURCE_HANDLER("index_html",index_html_handler,"text/html");
-REGISTER_STATIC_RESOURCE(indexroot, "/",index_html_handler);
-REGISTER_STATIC_RESOURCE(indexhtml, "/index.html",index_html_handler);
 
-*/
 
 
 httpd_handle_t start_static_webserver(void) {
@@ -202,11 +190,6 @@ httpd_handle_t start_static_webserver(void) {
 
 void registerStaticResources(httpd_handle_t server) {
        httpd_register_uri_handler(server, &common_get_uri);
-
- /*   httpd_register_uri_handler(server, &indexroot);
-    httpd_register_uri_handler(server, &indexhtml); */
-//    httpd_register_basic_auth(server);
-
 }
 
 void stop_static_webserver(httpd_handle_t server) {

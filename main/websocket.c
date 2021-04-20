@@ -10,18 +10,18 @@
 
 #include "cJSON.h"
 
+#include "commandHandler.h"
+
+
+#include "websocket.h"
 
 static const char *TAG = "Esp32MotherClock.ws";
 
 #define STACK_SIZE_JANITOR_TASK 4096 // 2048
 
-#define MSG_PING "PING"
 
 
 
-
-
-// static const max_clients = CONFIG_MCLK_MAX_CLIENTS;
 
 /*
  * Structure holding server handle
@@ -34,12 +34,6 @@ struct async_resp_arg {
     char *msg;
 };
 
-
-struct sessionContext {
-    int notSeenCount;   
-    bool authenticated;
-} sessionContext;
-typedef struct sessionContext* sessionContext_t;
 
 
 TaskHandle_t janitorTaskHandle = NULL;
@@ -90,13 +84,14 @@ static void ws_async_send(void *arg) {
     free(resp_arg);
 }
 
+/*
 static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req) {
     struct async_resp_arg *resp_arg = malloc(sizeof(struct async_resp_arg));
     resp_arg->hd = req->handle;
     resp_arg->fd = httpd_req_to_sockfd(req);
     return httpd_queue_work(handle, ws_async_send, resp_arg);
 }
-
+*/
 
 
 #define JANNITOR_TASK_ASSERT_ALLOC(comparison, msg) \
@@ -110,8 +105,8 @@ static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req) {
 void sessionJanitorTask( void* pvParameters ) {
   for (;;) {
     if(serverRef != NULL) {
-        size_t clients = CONFIG_MCLK_MAX_CLIENTS;
-        int    client_fds[CONFIG_MCLK_MAX_CLIENTS];
+        size_t clients = CONFIG_MCLK_MAX_CLIENTS * 10;
+        int    client_fds[CONFIG_MCLK_MAX_CLIENTS * 10];
 
         
         if (httpd_get_client_list(serverRef, &clients, client_fds) == ESP_OK) {
@@ -123,10 +118,6 @@ void sessionJanitorTask( void* pvParameters ) {
                     struct async_resp_arg *resp_arg = malloc(sizeof(struct async_resp_arg));
                     resp_arg->hd = serverRef;
                     resp_arg->fd = sock;
-/*                    resp_arg->msg = malloc(strlen(MSG_PING) +1);
-                    strcpy(resp_arg->msg, MSG_PING); */
-
-
 
                     cJSON *pingMsgObj = cJSON_CreateObject();
                     JANNITOR_TASK_ASSERT_ALLOC_JSON(pingMsgObj == NULL);
@@ -146,6 +137,8 @@ void sessionJanitorTask( void* pvParameters ) {
                 }
 
             }
+        } else {
+            ESP_LOGE(TAG, "Error httpd_get_client_list returned ESP_ERR_INVALID_ARG");
         }
 
     }
@@ -174,32 +167,16 @@ void freeSessionContext(void *ctx) {
  * This handler is called in case a incomming WS mesage has to be handled
  */
 
-#define IF_JSON_CMD(CMD_TO_COMPARE)  if(ws_pkt.type == HTTPD_WS_TYPE_TEXT && cJSON_IsString(cmd) && (cmd->valuestring != NULL) && strcmp(cmd->valuestring,  CMD_TO_COMPARE) == 0 ) 
-
-
-#define COMMAND_ASSERT_ALLOC_JSON(comparison,obj)   \
-    if (comparison) {                               \
-        ESP_LOGE(TAG, "Error creating JSON");       \
-        free(buf);                                  \
-         cJSON_Delete(cmd);                         \
-        return ESP_FAIL;                            \
-    }
-
-
-#define  GOTO_END_INCOMMING_WS_MESSAGE_HANDLER(RET_VALUE) \
-     ret = RET_VALUE; \
-     goto END_INCOMMING_WS_MESSAGE_HANDLER;
-
-
 static esp_err_t incomming_ws_message_handler(httpd_req_t *req) {
 
-    uint8_t *buf = NULL;
-  //  sessionContext_t sessContext = NULL;
-
+    uint8_t *inputBuffer = NULL;
 
     sessionContext_t sessContext = httpd_sess_get_ctx(req->handle, httpd_req_to_sockfd(req));
 
-    if (req->method == HTTP_GET) {
+    httpd_sess_update_lru_counter(req->handle, httpd_req_to_sockfd(req));
+
+    
+    if (req->method == HTTP_GET) {                        // this is executed in case the first connection to websocket
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
 
         if(sessContext == NULL) {
@@ -212,113 +189,93 @@ static esp_err_t incomming_ws_message_handler(httpd_req_t *req) {
             ESP_LOGW(TAG, "Very odd - for a new conenction there should be no connection");
         }
 
-      //  sessContext->notSeenCount = 0;
-
         return ESP_OK;
     }
 
-
-
-    if(sessContext == NULL) {
+                                                            // in case a new connection it should have been handled before
+    if(sessContext == NULL) {                               // in case an existing connection the session context can't be NULL
         ESP_LOGE(TAG, "Not a new connection - Session context should be set ?!");
         return ESP_ERR_NOT_FOUND;
     }
 
-    sessContext->notSeenCount = 0;
+    sessContext->notSeenCount = 0;                          // so we have seen the client now and can reset the counter
 
-
-    httpd_ws_frame_t ws_pkt;
+    httpd_ws_frame_t websocketPacket;              // allocate a structure to extract the request
    
-    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+    memset(&websocketPacket, 0, sizeof(httpd_ws_frame_t));
+    websocketPacket.type = HTTPD_WS_TYPE_TEXT;
     /* Set max_len = 0 to get the frame len */
-    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
+    esp_err_t ret = httpd_ws_recv_frame(req, &websocketPacket, 0);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "httpd_ws_recv_frame failed to get frame len with %d", ret);
         return ret;
     }
-    ESP_LOGI(TAG, "frame len is %d", ws_pkt.len);
-    if (ws_pkt.len) {
+    ESP_LOGI(TAG, "frame len is %d", websocketPacket.len);
+
+
+
+
+    if (websocketPacket.len) {
 
         /* ws_pkt.len + 1 is for NULL termination as we are expecting a string */
-        buf = calloc(1, ws_pkt.len + 1);
-        if (buf == NULL) {
+        inputBuffer = calloc(1, websocketPacket.len + 1);
+        if (inputBuffer == NULL) {
             ESP_LOGE(TAG, "Failed to calloc memory for buf");
             return ESP_ERR_NO_MEM;
         }
-        ws_pkt.payload = buf;
-        /* Set max_len = ws_pkt.len to get the frame payload */
-        ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+        websocketPacket.payload = inputBuffer;
+        /* Set max_len = websocketPacket.len to get the frame payload */
+        ret = httpd_ws_recv_frame(req, &websocketPacket, websocketPacket.len);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
-            free(buf);
+            free(inputBuffer);
             return ret;
         }
-        ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
+        ESP_LOGI(TAG, "Got packet with message: %s", websocketPacket.payload);
     }
-    ESP_LOGI(TAG, "Packet type: %d", ws_pkt.type);
-    if (ws_pkt.type == HTTPD_WS_TYPE_TEXT && strcmp((char*)ws_pkt.payload,"Trigger async") == 0) {
-        free(buf);
-        return trigger_async_send(req->handle, req);
-    }
+    ESP_LOGI(TAG, "Packet type: %d", websocketPacket.type);
 
 
-    cJSON *json = cJSON_ParseWithLength((char *) ws_pkt.payload,ws_pkt.len + 1);
-    if (json == NULL) {
-        const char *error_ptr = cJSON_GetErrorPtr();
-        if (error_ptr != NULL) { 
-            ESP_LOGE(TAG, "Error before: %s", error_ptr);
-        }
-        ESP_LOGE(TAG, "could not parse incomming message as JSON");
-        free(buf);
-        return ESP_FAIL;
+    downstreamPacket_t downstreamPacket = NULL;
+
+
+    if(websocketPacket.type != HTTPD_WS_TYPE_TEXT ) {
+        ESP_LOGE(TAG, "Invalid Packet Type");
+        ret = ESP_FAIL;
+        goto END_INCOMMING_WS_MESSAGE_HANDLER;
     }
 
-    cJSON *cmd = cJSON_GetObjectItemCaseSensitive(json, "cmd");
 
+    ret = interpreteCmd((char*) websocketPacket.payload, websocketPacket.len + 1, &downstreamPacket, sessContext);
 
-  //  if (ws_pkt.type == HTTPD_WS_TYPE_TEXT && cJSON_IsString(cmd) && (cmd->valuestring != NULL) && strcmp(cmd->valuestring,  MSG_PONG) == 0 ) {
-    IF_JSON_CMD("PONG") {
-        ESP_LOGI(TAG, "Got PONG Response");
-        GOTO_END_INCOMMING_WS_MESSAGE_HANDLER(ESP_OK);
+    if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "incomming WS Command could be interpreted");
+            goto END_INCOMMING_WS_MESSAGE_HANDLER;
     }
 
-     IF_JSON_CMD("GETSTATUS") {
-        ESP_LOGI(TAG, "Got Status Request");
+    if(downstreamPacket != NULL) {
 
-        cJSON *statusMsgObj = cJSON_CreateObject();
-        COMMAND_ASSERT_ALLOC_JSON(statusMsgObj == NULL,statusMsgObj);
-        cJSON *cmd = cJSON_CreateString("STATUS");
-        COMMAND_ASSERT_ALLOC_JSON(cmd == NULL,statusMsgObj);
-        cJSON_AddItemToObject(statusMsgObj, "cmd", cmd);
+        ESP_LOGI(TAG, "send synchron message: %s", downstreamPacket->buffer);
 
-        cJSON *auth = cJSON_CreateBool(sessContext->authenticated);
-//        COMMAND_ASSERT_ALLOC_JSON(auth == NULL,statusMsgObj);
-        cJSON_AddItemToObject(statusMsgObj, "auth", auth);
+        websocketPacket.type = HTTPD_WS_TYPE_TEXT;
+        websocketPacket.len = downstreamPacket->len;
+        websocketPacket.payload = (uint8_t *) downstreamPacket->buffer;
 
-        ws_pkt.payload =  (uint8_t *)cJSON_Print(statusMsgObj);
-        if(ws_pkt.payload == NULL) {
-            ESP_LOGE(TAG, "Can't allocate space for Status JSON");
-            GOTO_END_INCOMMING_WS_MESSAGE_HANDLER(ESP_OK);
-        }
-        ws_pkt.len = strlen((char*) ws_pkt.payload);
-        ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
-        ret = httpd_ws_send_frame(req, &ws_pkt);
+        ret = httpd_ws_send_frame(req, &websocketPacket);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
         }
-       
-        free(ws_pkt.payload);
-        GOTO_END_INCOMMING_WS_MESSAGE_HANDLER(ESP_OK);
-
     }
 
 
-END_INCOMMING_WS_MESSAGE_HANDLER:
 
-    cJSON_Delete(cmd);
-    free(buf);
+
+
+
+END_INCOMMING_WS_MESSAGE_HANDLER:
+    freeDownstreamPacketBuffer(downstreamPacket);
+    free(inputBuffer);
     return ret;
 }
 
