@@ -155,3 +155,123 @@ body {
 	background-size: cover;
 	background-image: url('clock-bg-img.jpg');
 }
+
+#spinner {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	height:60px;
+	width:60px;
+	margin:0px auto;
+	-webkit-animation: rotation .6s infinite linear;
+	-moz-animation: rotation .6s infinite linear;
+	-o-animation: rotation .6s infinite linear;
+	animation: rotation .6s infinite linear;
+	border-left: 6px solid rgba(137, 234, 120, .7);
+	border-right: 6px solid rgba(137, 234, 120, .7);
+	border-bottom: 6px solid rgba(137, 234, 120, .7);
+	border-top: 6px solid rgba(87, 184, 70, .8);
+   	border-radius:100%;
+}
+#spinnerbg {
+	background-color: rgba(128,128,128,.2);
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+@-webkit-keyframes rotation {
+   from {-webkit-transform: rotate(0deg);}
+   to {-webkit-transform: rotate(359deg);}
+}
+@-moz-keyframes rotation {
+   from {-moz-transform: rotate(0deg);}
+   to {-moz-transform: rotate(359deg);}
+}
+@-o-keyframes rotation {
+   from {-o-transform: rotate(0deg);}
+   to {-o-transform: rotate(359deg);}
+}
+@keyframes rotation {
+   from {transform: rotate(0deg);}
+   to {transform: rotate(359deg);}
+}
+
+
+.tabs {
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  width:800px;
+  height:80%;
+  padding:30px 20px;
+  background: #f5f5f5;
+ /* box-shadow:5px 5px 10px 5px #ccc;  */
+  overflow:hidden;
+}
+.tabs .tab-header {
+  float:left;
+  width:180px;
+  height:100%;
+  border-right:1px solid #ccc;
+  padding:50px 0px;
+}
+.tabs .tab-header > div {
+  height:50px;
+  line-height:50px;
+  font-size:16px;
+  font-weight:600;
+  color:#888;
+  cursor:pointer;
+  padding-left:10px;
+}
+.tabs .tab-header > div:hover,
+.tabs .tab-header > div.active {
+  color: #57b846;
+}
+.tabs .tab-header div i {
+  display:inline-block;
+  margin-left:10px;
+  margin-right:5px;
+}
+.tabs .tab-content {
+  position:relative;
+  height:100%;
+  overflow:hidden;
+}
+.tabs .tab-content > div > i {
+  display:inline-block;
+  width:50px;
+  height:50px;
+  background:#555;
+  color:#f5f5f5;
+  font-size:25px;
+  font-weight:600;
+  text-align:center;
+  line-height:50px;
+  border-radius:50%;
+}
+.tabs .tab-content > div {
+  text-align:center;
+  padding:40px 20px;
+  top:-200%;
+}
+.tabs .tab-content > div.active {
+  top:0px;
+}
+
+.tabs .tab-content > div.inactive {
+  display: none;
+}
+
+.tabs .tab-indicator {
+  position:absolute;
+  width:4px;
+  height:50px;
+  background: #57b846;
+  left:198px;
+  top:80px;
+}

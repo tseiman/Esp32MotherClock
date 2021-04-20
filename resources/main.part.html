@@ -1,0 +1,72 @@
+<html>
+    <head>
+      <title>ESP32 Mother Clock</title>
+      <meta charset="utf-8" />
+      <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+      <link rel="icon" type="image/png" href="/favicon32.png" sizes="32x32">
+
+      <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="jquery-ui.min.css" />
+      <link rel="stylesheet" href="jquery-ui.theme.min.css" />
+      <link rel="stylesheet" href="jquery-ui.icon-font.min.css" />
+      
+      <script src="jquery.min.js"></script>
+      <script src="jquery-ui.min.js"></script>
+      <script src="main.js"></script>
+    </head>
+    <body>
+
+
+      <div class="tabs">
+        <div class="tab-header">
+          <div class="active">
+            <i class="ui-icon ui-icon-heart-beat"></i> Status
+          </div>
+          <div>
+            <i class="ui-icon ui-icon-client"></i> Network
+          </div>
+          <div>
+            <i class="ui-icon ui-icon-clock-b"></i> Clock
+          </div>
+          <div>
+            <i class="ui-icon ui-icon-shield"></i> Security
+          </div>
+          <div class="direct-link" id="logout-btn">
+            <i class="ui-icon ui-icon-switch"></i> Logout
+          </div>
+
+
+        </div>
+        <div class="tab-indicator"></div>
+
+        <div class="tab-content">
+
+          <div class="active">
+            <i class="ui-icon ui-icon-heart-beat"></i>
+            <h2>This is Status section</h2>
+            <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Quis eum similique quisquam officiis neque, cumque dignissimos architecto nisi totam sapiente eos et illum laborum atque vero ea perferendis consectetur veritatis.</p>
+          </div>
+          <div class="inactive">
+            <i class="ui-icon ui-icon-client"></i>
+            <h2>This is Network section</h2>
+            <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Quis eum similique quisquam officiis neque, cumque dignissimos architecto nisi totam sapiente eos et illum laborum atque vero ea perferendis consectetur veritatis.</p>
+          </div>
+          <div class="inactive">
+            <i class="ui-icon ui-icon-clock-b"></i>
+            <h2>This is Clock section</h2>
+            <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Quis eum similique quisquam officiis neque, cumque dignissimos architecto nisi totam sapiente eos et illum laborum atque vero ea perferendis consectetur veritatis.</p>
+          </div>
+          <div class="inactive">
+            <i class="ui-icon ui-icon-shield"></i>
+            <h2>This is Security section</h2>
+            <p>Lorem ipsum dolor sit amet consectetur, adipisicing elit. Quis eum similique quisquam officiis neque, cumque dignissimos architecto nisi totam sapiente eos et illum laborum atque vero ea perferendis consectetur veritatis.</p>
+          </div>
+
+        </div>
+      </div>
+
+    <div id="dialog-logout-confirm" title="Logout?">
+      <p><span class="ui-icon ui-icon-alert" style="float:left; margin: 0px 12px 10px 0;"></span>Are you sure to logout?</p>
+    </div>
+  </body>
+</html>    

@@ -2,15 +2,44 @@
     <head>
 		<title>ESP32 Mother Clock</title>
 		<meta charset="utf-8" />
-		<link rel="stylesheet" href="style.css" />
 		<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
-		<link rel="icon" type="image/png" href="/favicon.png" sizes="32x32">
-		<script src="jquery.slim.min.js"></script>
+		<link rel="icon" type="image/png" href="/favicon32.png" sizes="32x32">
+
+		<link rel="stylesheet" href="style.css" />
+    	<link rel="stylesheet" href="jquery-ui.min.css" />
+		<link rel="stylesheet" href="jquery-ui.theme.min.css" />
+		<link rel="stylesheet" href="jquery-ui.icon-font.min.css" />
+		
+		<script src="jquery.min.js"></script>
+    	<script src="jquery-ui.min.js"></script>
 		<script src="main.js"></script>
     </head>
     <body>
 	    <div id="mainform">
-			<h1>Hello World</h1>
+
+	      <div class="tabs">
+	        <div class="tab-header">
+	          <div class="active">
+	            <i class="ui-icon ui-icon-heart-beat"></i> Status
+	          </div>
+	          <div class="direct-link" id="logout-btn">
+	            <i class="ui-icon ui-icon-switch"></i> Logout
+	          </div>
+
+
+	        </div>
+	        <div class="tab-indicator"></div>
+
+	        <div class="tab-content">
+
+	          <div class="active">
+	            <i class="ui-icon ui-icon-heart-beat"></i>
+	            <h2>Clock Status</h2>
+	            <p></p>
+	          </div>
+
+	        </div>
+	      </div>
 	    </div>
 		
 
@@ -22,7 +51,7 @@
 						Sign In
 					</span>
 				</div>
-				<form class="login-input-form">
+				<form class="login-input-form" id="loginform-form">
 					<div class="login-input-wrap">
 						<span class="label-login">Username</span>
 						<input class="login-input" type="text" name="username" placeholder="Enter username">
@@ -30,7 +59,7 @@
 					</div>
 					<div class="login-input-wrap">
 						<span class="label-login">Password</span>
-						<input class="login-input" type="password" name="pass" placeholder="Enter password">
+						<input class="login-input" type="password" name="password" placeholder="Enter password">
 						<span class="focus-login-input"></span>
 					</div>
 
@@ -44,5 +73,9 @@
 				</form>
 			</div>
 		</div>
+	    <div id="spinnerbg"><div id="spinner" style=""></div></div>
+	    <div id="dialog-logout-confirm" title="Logout?">
+      		<p><span class="ui-icon ui-icon-alert" style="float:left; margin: 0px 12px 10px 0;"></span>Are you sure to logout?</p>
+    	</div>
 	</body>
 </html>
