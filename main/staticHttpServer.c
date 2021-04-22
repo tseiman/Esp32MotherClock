@@ -96,7 +96,14 @@ static esp_err_t common_get_handler(httpd_req_t *req) {
             filepath[i] = '\0';
             break;
         }
+
+        if(filepath[i]== '.' && filepath[i+1]== '.') {              // let's not deal with funny relative pathes pointing us anywhere
+            httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Invalid relative path");
+            return ESP_FAIL;
+        }
     }
+
+
 
     strlcat(filepath, ".gz", sizeof(filepath));
 

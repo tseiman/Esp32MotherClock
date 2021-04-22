@@ -1,7 +1,23 @@
+/* ***************************************************************************
+ *
+ * Thomas Schmidt, 2021
+ *
+ * This file is part of the Esp32MotherClock Project
+ *
+ * This is WebClient, mainly GUI related code
+ * 
+ * License: MPL-2.0 License
+ *
+ * Project URL: https://github.com/tseiman/Esp32MotherClock
+ *
+ ************************************************************************** */
+
+
 console.log("Esp32MotherClock - OK");
 
 var auth = false;
 
+var getMapDataObj = {};
 
 
 (function ($) {
@@ -35,6 +51,46 @@ var auth = false;
     };
 }(jQuery));
 
+function login(msgObj){
+	if(msgObj.auth && (! auth)) {
+		$("#mainform").show();
+		$("#loginform").hide();
+		auth = true;
+		var map = { "cmd": "GETMAP"};
+    	wsSend(JSON.stringify(map));
+
+	} else if ((! msgObj.auth) && auth) {
+		$("#mainform").hide();
+		$("#loginform").show();	
+		$('input[name="username"]').val('');
+		$('input[name="password"]').val('');		
+		auth = false;
+	} else if ((! msgObj.auth) && (! auth) && msgObj.cmd === "LOGIN") {
+		$("#loginform").shake();
+	}
+} 
+
+
+function getmap(msgObj){
+
+	if(msgObj.packetNo === 0) { 
+		getMapDataObj.receivedBytes = msgObj.len;
+		getMapDataObj.buffer = msgObj.data;
+	} else {
+		getMapDataObj.receivedBytes += msgObj.len;
+		getMapDataObj.buffer = getMapDataObj.concat(msgObj.data);
+	}
+
+	if(msgObj.totallen === getMapDataObj.receivedBytes) {
+		getMapDataObj.buffer = getMapDataObj.buffer.replace(/'/g,'"');
+		getMapDataObj.buffer = getMapDataObj.buffer.replace(/\\/g,'\\\\');
+		var mapObj = JSON.parse(getMapDataObj.buffer);
+		console.log(mapObj);
+	}
+
+} 
+
+
 
 
 var ws = new WebSocket("wss://" + location.host + "/ws");
@@ -45,27 +101,27 @@ ws.onerror = function(event) {
 };
 
 ws.onmessage = function (event) {
-	var msgObj = JSON.parse(event.data);
-	console.log(msgObj);
-	if(msgObj.cmd === "PING" ) {
-		var answer = { "cmd": "PONG"};
-		wsSend(JSON.stringify(answer));
-	}
-
-	if(msgObj.cmd === "STATUS" || msgObj.cmd === "LOGIN") {
-		if(msgObj.auth && (! auth)) {
-			$("#mainform").show();
-			$("#loginform").hide();
-			auth = true;
-		} else if ((! msgObj.auth) && auth) {
-			$("#mainform").hide();
-			$("#loginform").show();	
-			$('input[name="username"]').val('');
-			$('input[name="password"]').val('');		
-			auth = false;
-		} else if ((! msgObj.auth) && (! auth) && msgObj.cmd === "LOGIN") {
-			$("#loginform").shake();
+	
+	try {
+		var msgObj = JSON.parse(event.data);
+		console.log(msgObj);
+		if(msgObj.cmd === "PING" ) {
+			var answer = { "cmd": "PONG"};
+			wsSend(JSON.stringify(answer));
 		}
+
+		if(msgObj.cmd === "STATUS" || msgObj.cmd === "LOGIN") {
+			login(msgObj);
+		}
+
+
+		if(msgObj.cmd === "GETMAP" ) {
+			getmap(msgObj);
+		}
+
+
+	} catch(e) {
+		console.log("Error", e, event.data);
 	}
 
 }
@@ -136,37 +192,3 @@ $( document ).ready(function() {
 });
 
 
-
-
-
-/*
-
-function _class(name){
-  return document.getElementsByClassName(name);
-}
-
-let tabPanes = _class("tab-header")[0].getElementsByTagName("div");
-
-for(let i=0;i<tabPanes.length;i++){
-  tabPanes[i].addEventListener("click",function(){
-    _class("tab-header")[0].getElementsByClassName("active")[0].classList.remove("active");
-    tabPanes[i].classList.add("active");
-    
-    _class("tab-indicator")[0].style.top = `calc(80px + ${i*50}px)`;
-    
-    _class("tab-content")[0].getElementsByClassName("active")[0].classList.remove("active");
-    _class("tab-content")[0].getElementsByTagName("div")[i].classList.add("active");
-    
-  });
-}
-
-
-*/
-
-
-/*	
-$(window).bind('beforeunload', function(){
-ws.send("close!");
-ws.close();
-});
-*/

@@ -1,3 +1,17 @@
+/* ***************************************************************************
+ *
+ * Thomas Schmidt, 2021
+ *
+ * This file is part of the Esp32MotherClock Project
+ *
+ * Here we handle WebsocketIO
+ * 
+ * License: MPL-2.0 License
+ *
+ * Project URL: https://github.com/tseiman/Esp32MotherClock
+ *
+ ************************************************************************** */
+
 #include <esp_event.h>
 #include <esp_log.h>
 #include <esp_system.h>
@@ -22,20 +36,6 @@ static const char *TAG = "Esp32MotherClock.ws";
 
 
 
-
-/*
- * Structure holding server handle
- * and internal socket fd in order
- * to use out of request send
- */
-struct async_resp_arg {
-    httpd_handle_t hd;
-    int fd;
-    char *msg;
-};
-
-
-
 TaskHandle_t janitorTaskHandle = NULL;
 
 
@@ -47,7 +47,7 @@ static httpd_handle_t serverRef = NULL;
  */
 static void ws_async_send(void *arg) {
    
-    struct async_resp_arg *resp_arg = arg;
+    async_resp_arg_t resp_arg = arg;
     ESP_LOGI(TAG, "send async message: %s", resp_arg->msg);
     httpd_handle_t hd = resp_arg->hd;
     int fd = resp_arg->fd;
@@ -60,38 +60,28 @@ static void ws_async_send(void *arg) {
         return;
     }
 
-
-    if(sess->notSeenCount >= 4) {
-        ESP_LOGW(TAG, "Client with socketfd=%d did no answer on communicaiton %d times, Closing socket ! ",fd,sess->notSeenCount);
-        return;
-    }
-
-    if(sess->notSeenCount > 0) {
-        ESP_LOGW(TAG, "Client with socketfd=%d did no answer on communicaiton %d times ! ",fd,sess->notSeenCount);
-        return;
-    }
-
-    ++sess->notSeenCount;
-
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
     ws_pkt.payload = (uint8_t*)resp_arg->msg;
-    ws_pkt.len = strlen(resp_arg->msg);
+    ws_pkt.len = resp_arg->len;
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
     httpd_ws_send_frame_async(hd, fd, &ws_pkt);
+
     free(resp_arg->msg);
-    free(resp_arg);
+
+    if(resp_arg->lastMessage) {
+        free(resp_arg); 
+    }
 }
 
-/*
-static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req) {
-    struct async_resp_arg *resp_arg = malloc(sizeof(struct async_resp_arg));
-    resp_arg->hd = req->handle;
-    resp_arg->fd = httpd_req_to_sockfd(req);
-    return httpd_queue_work(handle, ws_async_send, resp_arg);
+
+
+ esp_err_t trigger_async_send(async_resp_arg_t arg) {
+    ESP_LOGI(TAG, "trigger_async_send");
+    return httpd_queue_work(arg->hd, ws_async_send, arg);
 }
-*/
+
 
 
 #define JANNITOR_TASK_ASSERT_ALLOC(comparison, msg) \
@@ -115,7 +105,7 @@ void sessionJanitorTask( void* pvParameters ) {
                 if (httpd_ws_get_fd_info(serverRef, sock) == HTTPD_WS_CLIENT_WEBSOCKET) {
                     ESP_LOGI(TAG, "Active client (fd=%d) -> sending PING message", sock);
                     
-                    struct async_resp_arg *resp_arg = malloc(sizeof(struct async_resp_arg));
+                    async_resp_arg_t resp_arg = malloc(sizeof(struct async_resp_arg));
                     resp_arg->hd = serverRef;
                     resp_arg->fd = sock;
 
@@ -127,7 +117,11 @@ void sessionJanitorTask( void* pvParameters ) {
 
                     cJSON_AddItemToObject(pingMsgObj, "cmd", cmd);
 
-                    resp_arg->msg = cJSON_Print(pingMsgObj);
+                    char *jsonStrPtr = cJSON_Print(pingMsgObj);
+                    resp_arg->msg = calloc(strlen(jsonStrPtr) + 1, sizeof(char));
+                    strcpy(resp_arg->msg, jsonStrPtr);
+                    resp_arg->lastMessage = true;
+                    resp_arg->len = strlen(resp_arg->msg); 
 
                     cJSON_Delete(pingMsgObj);
 
@@ -147,7 +141,7 @@ void sessionJanitorTask( void* pvParameters ) {
 
 
     vTaskDelay(5000 / portTICK_PERIOD_MS);
-  }  
+  } // END FOR 
   vTaskDelete( NULL );
 }
 
@@ -182,7 +176,7 @@ static esp_err_t incomming_ws_message_handler(httpd_req_t *req) {
         if(sessContext == NULL) {
             ESP_LOGI(TAG, "New session context");
             sessContext = (sessionContext_t)malloc(sizeof(sessionContext)); 
-            sessContext->notSeenCount = 0;
+         //   sessContext->notSeenCount = 0;
             sessContext->authenticated = false;
             httpd_sess_set_ctx(req->handle, httpd_req_to_sockfd(req), sessContext, freeSessionContext);
         } else {
@@ -198,7 +192,6 @@ static esp_err_t incomming_ws_message_handler(httpd_req_t *req) {
         return ESP_ERR_NOT_FOUND;
     }
 
-    sessContext->notSeenCount = 0;                          // so we have seen the client now and can reset the counter
 
     httpd_ws_frame_t websocketPacket;              // allocate a structure to extract the request
    
@@ -236,45 +229,51 @@ static esp_err_t incomming_ws_message_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Packet type: %d", websocketPacket.type);
 
 
-    downstreamPacket_t downstreamPacket = NULL;
-
-
     if(websocketPacket.type != HTTPD_WS_TYPE_TEXT ) {
         ESP_LOGE(TAG, "Invalid Packet Type");
         ret = ESP_FAIL;
-        goto END_INCOMMING_WS_MESSAGE_HANDLER;
+        goto END_INCOMMING_WS_ERROR_MESSAGE_HANDLER;
     }
 
+    async_resp_arg_t resp_arg = malloc(sizeof(struct async_resp_arg));
+    resp_arg->hd = req->handle;
+    resp_arg->fd = httpd_req_to_sockfd(req);
 
-    ret = interpreteCmd((char*) websocketPacket.payload, websocketPacket.len + 1, &downstreamPacket, sessContext);
+    ret = interpreteCmd((char*) websocketPacket.payload, websocketPacket.len + 1, resp_arg, sessContext, &trigger_async_send);
 
     if (ret != ESP_OK) {
             ESP_LOGE(TAG, "incomming WS Command could be interpreted");
-            goto END_INCOMMING_WS_MESSAGE_HANDLER;
+            ret = ESP_OK;
+            goto END_INCOMMING_WS_ERROR_MESSAGE_HANDLER;
     }
 
-    if(downstreamPacket != NULL) {
-
-        ESP_LOGI(TAG, "send synchron message: %s", downstreamPacket->buffer);
-
-        websocketPacket.type = HTTPD_WS_TYPE_TEXT;
-        websocketPacket.len = downstreamPacket->len;
-        websocketPacket.payload = (uint8_t *) downstreamPacket->buffer;
+    goto END_INCOMMING_WS_MESSAGE_HANDLER;
 
 
-        ret = httpd_ws_send_frame(req, &websocketPacket);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
-        }
+
+END_INCOMMING_WS_ERROR_MESSAGE_HANDLER: ;
+
+    cJSON *errMsgObj = cJSON_CreateObject();
+    if (errMsgObj == NULL) {
+        ESP_LOGE(TAG, "could allocate memory for ERROR msg obj");
+    }
+    cJSON *cmd = cJSON_CreateString("ERROR");
+    if (cmd == NULL) {
+        ESP_LOGE(TAG, "could allocate memory for ERROR msgcmd");
     }
 
+    cJSON_AddItemToObject(errMsgObj, "cmd", cmd);
 
 
 
+    websocketPacket.type = HTTPD_WS_TYPE_TEXT;
+    websocketPacket.payload = (uint8_t *) cJSON_Print(errMsgObj);
+    websocketPacket.len =  (size_t) strlen( (char *) websocketPacket.payload);
+    httpd_ws_send_frame(req, &websocketPacket);
 
+    cJSON_Delete(errMsgObj);
 
 END_INCOMMING_WS_MESSAGE_HANDLER:
-    freeDownstreamPacketBuffer(downstreamPacket);
     free(inputBuffer);
     return ret;
 }
@@ -293,8 +292,6 @@ void start_wss(httpd_handle_t server) {
     serverRef = server;
     httpd_register_uri_handler(server, &wss);
     xTaskCreate( sessionJanitorTask, "WSSsessionJanitorTask", STACK_SIZE_JANITOR_TASK, NULL, tskIDLE_PRIORITY + 1, &janitorTaskHandle );
- //   configASSERT( janitorTaskHandle );
-
 }
 
 void stop_wss(httpd_handle_t server) {

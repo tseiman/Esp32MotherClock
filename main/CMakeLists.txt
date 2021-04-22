@@ -1,5 +1,5 @@
 
-set(RESOURCES_LIST 
+set(RESOURCES_LIST_WWW 
 	index.html
 	favicon.ico
 	favicon32.png
@@ -27,11 +27,15 @@ set(RESOURCES_LIST
 )
 
 
+set(RESOURCES_LIST_ETC
+	configMap.json
+)
+
 
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
-	list(LENGTH RESOURCES_LIST RESOURCES_LIST_FILE_COUNT)
-	add_definitions(-DRESOURCES_LIST_FILE_COUNT=${RESOURCES_LIST_FILE_COUNT})
-
+	list(LENGTH RESOURCES_LIST_WWW RESOURCES_LIST_WWW_FILE_COUNT)
+	list(LENGTH RESOURCES_LIST_ETC RESOURCES_LIST_ETC_FILE_COUNT)
+	add_definitions(-DRESOURCES_LIST_WWW_FILE_COUNT=${RESOURCES_LIST_WWW_FILE_COUNT} -DRESOURCES_LIST_ETC_FILE_COUNT=${RESOURCES_LIST_ETC_FILE_COUNT})
 
 	add_custom_command(OUTPUT ${COMPONENT_DIR}/www
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${COMPONENT_DIR}/www
@@ -50,7 +54,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
 
 
 
-	foreach(RESOURCE IN LISTS RESOURCES_LIST)
+	foreach(RESOURCE IN LISTS RESOURCES_LIST_WWW)
 		string(REPLACE "/" "_" TARGET_NAME ${RESOURCE})
 
 
@@ -59,10 +63,15 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
 							DEPENDS ${COMPONENT_DIR}/../resources/${RESOURCE}
 		)
 		add_custom_target(${TARGET_NAME}_Resource_Target ALL DEPENDS ${COMPONENT_DIR}/../resources/${RESOURCE} ${COMPONENT_DIR}/www/ ${COMPONENT_DIR}/www/images/)
-		list(APPEND RESOURCES_LIST_DEP ${COMPONENT_DIR}/www/${RESOURCE}.gz)
+		list(APPEND RESOURCES_LIST_WWW_DEP ${COMPONENT_DIR}/www/${RESOURCE}.gz)
 		message(STATUS "adding resource file ${RESOURCE}")
 	endforeach()
 
+
+	foreach(RESOURCE IN LISTS RESOURCES_LIST_ETC)
+		list(APPEND RESOURCES_LIST_ETC_DEP ${COMPONENT_DIR}/etc/${RESOURCE})
+		message(STATUS "adding etc file ${RESOURCE}")
+	endforeach()
 
 
 
@@ -73,8 +82,15 @@ spiffs_create_partition_image(www ${WEB_SRC_DIR} FLASH_IN_PROJECT
 								${COMPONENT_DIR}/www/
 								${COMPONENT_DIR}/www/images/
 								${COMPONENT_DIR}/www/font/
-								${RESOURCES_LIST_DEP}
+								${RESOURCES_LIST_WWW_DEP}
 
+)
+
+set(ETC_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../main/etc")
+
+spiffs_create_partition_image(etc ${ETC_SRC_DIR} FLASH_IN_PROJECT 
+								DEPENDS 
+								${RESOURCES_LIST_ETC_DEP}
 )
 
 
