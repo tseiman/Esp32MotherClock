@@ -78,21 +78,71 @@ function login(msgObj){
 	}
 } 
 
+
+function checkValidItems() {
+	var ret = true;
+	$.each(getMapDataObj.mapObj.items, function(key, item ) { 
+		console.log();
+		if(!item.valid && item.active) {
+			$("#save-btn").addClass(" ui-state-disabled");
+			ret = false;
+			return false;
+		} else {
+			$("#save-btn").removeClass(" ui-state-disabled");
+		}
+	});
+	return ret;
+}
+
 function widgetChangeHandler(obj){
+
+	if(getMapDataObj.mapObj.items[obj.currentTarget.name].type === 'checkbox') {
+
+		getMapDataObj.mapObj.items[obj.currentTarget.name].value = jQuery(obj.currentTarget).is(":checked");
+	} else {
+		getMapDataObj.mapObj.items[obj.currentTarget.name].value = jQuery(obj.currentTarget).val();
+	}
 
 	if(getMapDataObj.mapObj.items[obj.currentTarget.name].hasOwnProperty('dependend')) {
 		getMapDataObj.mapObj.items[obj.currentTarget.name].dependend.forEach(function (item, index) {
 			if( item.type === "bool") {
 
-				if(jQuery(event.target).is(":checked") ?  item.trueFalse : !item.trueFalse) { // inverse exclusive OR
+				if(getMapDataObj.mapObj.items[obj.currentTarget.name].value ?  item.trueFalse : !item.trueFalse) { // inverse exclusive OR
 					$("#widget-" + item.dependend).prop( "disabled", false );
+					$("#widget-" + item.dependend).removeClass("disabledInput");
+					getMapDataObj.mapObj.items[item.dependend].active = true;
 				} else {
 					$("#widget-" + item.dependend).prop( "disabled", true );
-				}
+					$("#widget-" + item.dependend).addClass("disabledInput");
+					getMapDataObj.mapObj.items[item.dependend].active = false;				}
 
 			}
 		});
 	}
+
+	if(getMapDataObj.mapObj.items[obj.currentTarget.name].hasOwnProperty('regexcheck')) {
+		var regex = getMapDataObj.mapObj.items[obj.currentTarget.name].regexcheck;
+
+		if(regex.match(/\$\{ref:.+\}/)) {
+			var reference = regex.match(/\$\{ref:(.+)\}/)[1];
+			if(getMapDataObj.mapObj.items.hasOwnProperty(reference)) {
+				var referenceData = getMapDataObj.mapObj.items[reference].value;
+				console.log(regex);
+				regex = regex.replace("${ref:" + reference + "}", referenceData != null ? referenceData : "");
+			}
+		}
+		var regexedMatch = new RegExp(regex);
+		if(getMapDataObj.mapObj.items[obj.currentTarget.name].value.match(regexedMatch)) {
+			getMapDataObj.mapObj.items[obj.currentTarget.name].valid = true;
+
+			jQuery(obj.currentTarget).removeClass("invalidInput");
+
+		} else {
+			getMapDataObj.mapObj.items[obj.currentTarget.name].valid = false;
+			jQuery(obj.currentTarget).addClass("invalidInput");
+		}
+	}
+	checkValidItems();
 }
 
 function getmap(msgObj){
@@ -119,7 +169,7 @@ function getmap(msgObj){
 		$.each(getMapDataObj.mapObj.items, function(key, value ) { 
 
 			if(value.type === "text") {
-				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"text\" value=\"\" /></div>");
+				$("#tab-" + value.section).find("p").append("<div data-tip=\"" + getMapDataObj.mapObj.i18n.en[key].hint + "\"><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"text\" value=\"\" /></div>");
 			} else if(value.type === "password") {
 				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"password\" value=\"\" /></div>");
 			} else if(value.type === "textbox") {
@@ -133,9 +183,14 @@ function getmap(msgObj){
 
 		});
 
-		$("input, textarea, select").change(function (obj){
-			widgetChangeHandler(obj);
+//		$().change(function (obj){
+//			widgetChangeHandler(obj);
+//		});
+		$("input, textarea, select").on("input", function (obj) {
+		  widgetChangeHandler(obj);
 		});
+
+
 
 		$.each(getMapDataObj.mapObj.items, function(key, value ) { 			
 			if(value.hasOwnProperty('depends')){
@@ -151,14 +206,21 @@ function getmap(msgObj){
 
 						if($("#widget-" + depends).is(":checked") ?  trueFalse : !trueFalse) { // inverse exclusive OR
 							$("#widget-" + key).prop( "disabled", false );
+							value.active = true;
+							$("#widget-" + key).removeClass("disabledInput");
 						} else {
 							$("#widget-" + key).prop( "disabled", true );
+							value.active = false;
+							$("#widget-" + key).addClass("disabledInput");
 						}
 
 
 					}
 				}
 			}
+			value.value = null;
+			value.valid = true;
+			value.active = true;
 		});
 
 
