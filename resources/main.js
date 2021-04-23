@@ -18,7 +18,8 @@ console.log("Esp32MotherClock - OK");
 var auth = false;
 
 var getMapDataObj = {};
-
+var ws = null;
+var pingTimeout = null;
 
 (function ($) {
     $.fn.shake = function (options) {
@@ -63,13 +64,36 @@ function login(msgObj){
 		$("#mainform").hide();
 		$("#loginform").show();	
 		$('input[name="username"]').val('');
-		$('input[name="password"]').val('');		
+		$('input[name="password"]').val('');
+		$(".removeable").remove();
+
+		$("#menu-status").addClass("active");
+		$("#tab-status").removeClass("inactive").addClass("active");
+		$(".tab-indicator").first().css("top", `calc(80px + ${0*50}px)`);
+
 		auth = false;
 	} else if ((! msgObj.auth) && (! auth) && msgObj.cmd === "LOGIN") {
+		$("#spinnerbg").hide();
 		$("#loginform").shake();
 	}
 } 
 
+function widgetChangeHandler(obj){
+
+	if(getMapDataObj.mapObj.items[obj.currentTarget.name].hasOwnProperty('dependend')) {
+		getMapDataObj.mapObj.items[obj.currentTarget.name].dependend.forEach(function (item, index) {
+			if( item.type === "bool") {
+
+				if(jQuery(event.target).is(":checked") ?  item.trueFalse : !item.trueFalse) { // inverse exclusive OR
+					$("#widget-" + item.dependend).prop( "disabled", false );
+				} else {
+					$("#widget-" + item.dependend).prop( "disabled", true );
+				}
+
+			}
+		});
+	}
+}
 
 function getmap(msgObj){
 
@@ -84,30 +108,83 @@ function getmap(msgObj){
 	if(msgObj.totallen === getMapDataObj.receivedBytes) {
 		getMapDataObj.buffer = getMapDataObj.buffer.replace(/'/g,'"');
 		getMapDataObj.buffer = getMapDataObj.buffer.replace(/\\/g,'\\\\');
-		var mapObj = JSON.parse(getMapDataObj.buffer);
-		console.log(mapObj);
+		getMapDataObj.mapObj = JSON.parse(getMapDataObj.buffer);
+
+		$.each(getMapDataObj.mapObj.sections, function(index, value ) { 
+			$( "#menu-placeholder" ).before( "<div class=\"removeable\" id=\"menu-" + value.name + "\"><i class=\"ui-icon ui-icon-" + value.icon + "\"></i>" + value.caption + "</div>" );
+           	$( "#tab-placeholder" ).before("<div class=\"inactive removeable menuselect\" id=\"tab-" + value.name + "\"><i class=\"ui-icon ui-icon-" + value.icon +"\"></i><h2>" + value.caption +"</h2><p></p></div>");
+		});
+		setupTabs();
+
+		$.each(getMapDataObj.mapObj.items, function(key, value ) { 
+
+			if(value.type === "text") {
+				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"text\" value=\"\" /></div>");
+			} else if(value.type === "password") {
+				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"password\" value=\"\" /></div>");
+			} else if(value.type === "textbox") {
+				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><textarea name=\"" + key + "\" id=\"widget-" + key +"\" rows=\"20\" /></textarea></div>");
+			} else if(value.type === "checkbox") {
+				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"checkbox\" value=\"\" /></div>");
+			} else {
+				console.warn("omitting: " + key + ", type : " + value.type);
+			}
+
+
+		});
+
+		$("input, textarea, select").change(function (obj){
+			widgetChangeHandler(obj);
+		});
+
+		$.each(getMapDataObj.mapObj.items, function(key, value ) { 			
+			if(value.hasOwnProperty('depends')){
+				if(value.depends.match(/^boolDepened\(.+,(true|false)\)/)) {
+					var depends = value.depends.match(/^boolDepened\((.+),(true|false)\)$/)[1];
+					var trueFalse = ( value.depends.match(/^boolDepened\((.+),(true|false)\)$/)[2] === 'true');
+					if(getMapDataObj.mapObj.items.hasOwnProperty(depends)){ 
+						if(! getMapDataObj.mapObj.items[depends].hasOwnProperty('dependend')){ 
+							getMapDataObj.mapObj.items[depends].dependend = []; 
+						}
+						getMapDataObj.mapObj.items[depends].dependend.push({"dependend": key, "trueFalse": trueFalse, "type" : "bool"});
+
+
+						if($("#widget-" + depends).is(":checked") ?  trueFalse : !trueFalse) { // inverse exclusive OR
+							$("#widget-" + key).prop( "disabled", false );
+						} else {
+							$("#widget-" + key).prop( "disabled", true );
+						}
+
+
+					}
+				}
+			}
+		});
+
+
+		$("#spinnerbg").hide();
+
 	}
 
 } 
 
 
-
-
-var ws = new WebSocket("wss://" + location.host + "/ws");
-
-ws.onerror = function(event) {
-	console.error("WebSocket error observed:", event);
-	$("#spinnerbg").show();
-};
-
-ws.onmessage = function (event) {
-	
+function parseIncommingWS(event) {
 	try {
 		var msgObj = JSON.parse(event.data);
-		console.log(msgObj);
+	//	console.log(msgObj);
 		if(msgObj.cmd === "PING" ) {
-			var answer = { "cmd": "PONG"};
+			var answer = { "cmd": "PONG"};	
 			wsSend(JSON.stringify(answer));
+			if(pingTimeout != null) {
+				clearTimeout(pingTimeout);
+			}
+
+			pingTimeout = setTimeout(function() {
+				pingTimeout = null;
+				console.error("No Ping, connection timeout");
+				ws.close();
+			},10000);
 		}
 
 		if(msgObj.cmd === "STATUS" || msgObj.cmd === "LOGIN") {
@@ -123,19 +200,61 @@ ws.onmessage = function (event) {
 	} catch(e) {
 		console.log("Error", e, event.data);
 	}
+}
+
+function connect() {
+  ws = new WebSocket("wss://" + location.host + "/ws");
+
+	ws.onopen = function() {
+		var status = { "cmd": "GETSTATUS"};
+		wsSend(JSON.stringify(status));
+		$("#spinnerbg").hide();
+	};
+
+	ws.onmessage = function(e) {
+		parseIncommingWS(event);
+	};
+
+	ws.onclose = function(e) {
+		console.log('Socket is closed. Reconnect will be attempted in 5 seconds.', e.reason);
+		setTimeout(function() {
+		  connect();
+		}, 5000);
+	};
+
+	ws.onerror = function(event) {
+		console.error("WebSocket error observed:", event);
+		$("#spinnerbg").show();
+		ws.close();
+	};
 
 }
 
-ws.onopen = function (event) {
-	var status = { "cmd": "GETSTATUS"};
-    wsSend(JSON.stringify(status));
-    $("#spinnerbg").hide();
-};
+connect();
+
+
+
 
 function wsSend(data) {
 	ws.send(data);
 }
 
+
+function setupTabs() {
+	$(".tab-header").first().find('div[class!="direct-link"]').filter('[class!="placeholder"]').each( function(i) {
+		$(this).click(function() {
+			$(".tab-header").first().find(".active").removeClass("active").addClass("inactive");
+			$(this).addClass("active").removeClass("inactive");
+
+			$(".tab-indicator").first().css("top", `calc(80px + ${i*50}px)`);
+
+
+			$(".tab-content").first().find(".active").filter('[class*="menuselect"]').first().removeClass("active").addClass("inactive");
+			$(".tab-content").first().find('div[class*="menuselect"]').eq(i).removeClass("inactive").addClass("active");
+
+		});
+	});
+}
 
 $( document ).ready(function() {
 	$( "#loginform-form" ).submit(function( event ) {
@@ -144,28 +263,14 @@ $( document ).ready(function() {
 		var password = $( "#loginform-form" ).find('input[name="password"]').val();
 		var loginObj = { "cmd": "LOGIN", "username": username, "password" : password};
 		wsSend(JSON.stringify(loginObj));
+		$("#spinnerbg").show();
 	  	
 	});
 	$("#spinnerbg").show();
 
 
+	setupTabs();
 
-	$(".tab-header").first().find('div[class!="direct-link"]').each( function(i) {
-		console.log(this);
-		$(this).click(function() {
-			$(".tab-header").first().find(".active").removeClass("active").addClass("inactive");
-			$(this).addClass("active").removeClass("inactive");
-
-			$(".tab-indicator").first().css("top", `calc(80px + ${i*50}px)`);
-
-
-			$(".tab-content").first().find(".active").first().removeClass("active").addClass("inactive");
-			$(".tab-content").first().find("div").eq(i).removeClass("inactive").addClass("active");
-
-
-			console.log(this);
-		});
-	});
 
 	$("#logout-btn").click(function() {
 		$( "#dialog-logout-confirm" ).dialog( "open" );

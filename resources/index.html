@@ -19,8 +19,12 @@
 
 	      <div class="tabs">
 	        <div class="tab-header">
-	          <div class="active">
+	          <div class="active" id="menu-status">
 	            <i class="ui-icon ui-icon-heart-beat"></i> Status
+	          </div>
+	          <div id="menu-placeholder" class="placeholder"></div>
+	          <div class="direct-link ui-state-disabled" id="save-btn">
+	            <i class="ui-icon ui-icon-save"></i> Save
 	          </div>
 	          <div class="direct-link" id="logout-btn">
 	            <i class="ui-icon ui-icon-switch"></i> Logout
@@ -32,14 +36,16 @@
 
 	        <div class="tab-content">
 
-	          <div class="active">
+	          <div class="active menuselect" id="tab-status">
 	            <i class="ui-icon ui-icon-heart-beat"></i>
 	            <h2>Clock Status</h2>
 	            <p></p>
 	          </div>
 
+			  <div id="tab-placeholder" class="placeholder"></div>
 	        </div>
 	      </div>
+	      <div class="whodidit">(c) 2021, Thomas Schmidt <a href="https://github.com/tseiman/Esp32MotherClock">GitHub</a></div>
 	    </div>
 		
 
@@ -72,6 +78,7 @@
 					</div>
 				</form>
 			</div>
+      		<div class="whodidit">(c) 2021, Thomas Schmidt <a href="https://github.com/tseiman/Esp32MotherClock">GitHub</a></div>
 		</div>
 	    <div id="spinnerbg"><div id="spinner" style=""></div></div>
 	    <div id="dialog-logout-confirm" title="Logout?">
