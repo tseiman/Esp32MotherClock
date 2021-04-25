@@ -103,6 +103,7 @@ idf_component_register(
 					"websocket.c"
 					"filesystem.c"
 					"commandHandler.c"
+					"config.c"
                     INCLUDE_DIRS 	"."
                     EMBED_TXTFILES 	"certs/cacert.pem"
                                 	"certs/prvtkey.pem")

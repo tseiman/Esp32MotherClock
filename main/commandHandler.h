@@ -25,7 +25,7 @@
 #define COMMAND_ASSERT_ALLOC_JSON(comparison,obj)   \
     if (comparison) {                               \
         ESP_LOGE(TAG, "Error creating JSON");       \
-        cJSON_Delete(cmd);                          \
+        cJSON_Delete(obj);                          \
         return ESP_FAIL;                            \
     }
 

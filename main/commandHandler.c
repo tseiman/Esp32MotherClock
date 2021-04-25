@@ -17,23 +17,24 @@
 #include <esp_log.h>
 #include <esp_system.h>
 #include <string.h>
-#include "freertos/task.h"
 #include <unistd.h>
 #include <sys/fcntl.h>
 #include <esp_http_server.h>
 
 #include "cJSON.h"
+#include "freertos/task.h"
 
 #include "commandHandler.h"
 
 #include "websocket.h"
+#include "config.h"
 
 
 
 static const char *TAG = "Esp32MotherClock.wsCmd";
 
 #define SCRATCH_BUFSIZE (10240)
-#define MAPFILE "/etc/configMap.json"
+
 
 static char scratch[SCRATCH_BUFSIZE];
 
