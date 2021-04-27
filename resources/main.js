@@ -63,8 +63,8 @@ function login(msgObj){
 	} else if ((! msgObj.auth) && auth) {
 		$("#mainform").hide();
 		$("#loginform").show();	
-		$('input[name="username"]').val('');
-		$('input[name="password"]').val('');
+		$('input[name="login_username"]').val('');
+		$('input[name="login_password"]').val('');
 		$(".removeable").remove();
 
 		$("#menu-status").addClass("active");
@@ -81,22 +81,23 @@ function login(msgObj){
 
 function checkValidItems() {
 	var ret = true;
-	$.each(getMapDataObj.mapObj.items, function(key, item ) { 
-		console.log();
-		if(!item.valid && item.active) {
-			$("#save-btn").addClass(" ui-state-disabled");
-			ret = false;
+	$.each(getMapDataObj.mapObj.items, function(key, item ) {
+//		console.log(key, item.valid, item.active , item.relevant , (item.originalvalue !== item.value));
+
+		if(item.valid && item.active && item.relevant && (item.originalvalue !== item.value)) {
+			$("#save-btn").removeClass(" ui-state-disabled");
 			return false;
 		} else {
-			$("#save-btn").removeClass(" ui-state-disabled");
+			$("#save-btn").addClass(" ui-state-disabled");
 		}
+
 	});
-	return ret;
+
 }
 
 function widgetChangeHandler(obj){
 
-	if(getMapDataObj.mapObj.items[obj.currentTarget.name].type === 'checkbox') {
+	if(getMapDataObj.mapObj.items[obj.currentTarget.name].widget === 'checkbox') {
 
 		getMapDataObj.mapObj.items[obj.currentTarget.name].value = jQuery(obj.currentTarget).is(":checked");
 	} else {
@@ -127,7 +128,6 @@ function widgetChangeHandler(obj){
 			var reference = regex.match(/\$\{ref:(.+)\}/)[1];
 			if(getMapDataObj.mapObj.items.hasOwnProperty(reference)) {
 				var referenceData = getMapDataObj.mapObj.items[reference].value;
-				console.log(regex);
 				regex = regex.replace("${ref:" + reference + "}", referenceData != null ? referenceData : "");
 			}
 		}
@@ -144,6 +144,37 @@ function widgetChangeHandler(obj){
 	}
 	checkValidItems();
 }
+
+function setWidgetStateEnableDisable() {
+	$.each(getMapDataObj.mapObj.items, function(key, value ) { 			
+		if(value.hasOwnProperty('depends')){
+			if(value.depends.match(/^boolDepened\(.+,(true|false)\)/)) {
+				var depends = value.depends.match(/^boolDepened\((.+),(true|false)\)$/)[1];
+				var trueFalse = ( value.depends.match(/^boolDepened\((.+),(true|false)\)$/)[2] === 'true');
+				if(getMapDataObj.mapObj.items.hasOwnProperty(depends)){ 
+					if(! getMapDataObj.mapObj.items[depends].hasOwnProperty('dependend')){ 
+						getMapDataObj.mapObj.items[depends].dependend = []; 
+					}
+					getMapDataObj.mapObj.items[depends].dependend.push({"dependend": key, "trueFalse": trueFalse, "type" : "bool"});
+
+
+					if($("#widget-" + depends).is(":checked") ?  trueFalse : !trueFalse) { // inverse exclusive OR
+						$("#widget-" + key).prop( "disabled", false );
+						value.active = true;
+						$("#widget-" + key).removeClass("disabledInput");
+					} else {
+						$("#widget-" + key).prop( "disabled", true );
+						value.active = false;
+						$("#widget-" + key).addClass("disabledInput");
+					}
+
+
+				}
+			}
+		}
+	});
+}
+
 
 function getmap(msgObj){
 
@@ -168,73 +199,117 @@ function getmap(msgObj){
 
 		$.each(getMapDataObj.mapObj.items, function(key, value ) { 
 
-			if(value.type === "text") {
+			if(value.widget === "text") {
 				$("#tab-" + value.section).find("p").append("<div data-tip=\"" + getMapDataObj.mapObj.i18n.en[key].hint + "\"><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"text\" value=\"\" /></div>");
-			} else if(value.type === "password") {
+			} else if(value.widget === "password") {
 				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"password\" value=\"\" /></div>");
-			} else if(value.type === "textbox") {
+			} else if(value.widget === "textbox") {
 				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><textarea name=\"" + key + "\" id=\"widget-" + key +"\" rows=\"20\" /></textarea></div>");
-			} else if(value.type === "checkbox") {
+			} else if(value.widget === "checkbox") {
 				$("#tab-" + value.section).find("p").append("<div><label for=\"widget-" + key +"\">" + getMapDataObj.mapObj.i18n.en[key].caption +"</label><input name=\"" + key + "\" id=\"widget-" + key +"\" type=\"checkbox\" value=\"\" /></div>");
 			} else {
-				console.warn("omitting: " + key + ", type : " + value.type);
+				console.warn("omitting: " + key + ", widget : " + value.widget);
 			}
 
 
 		});
 
-//		$().change(function (obj){
-//			widgetChangeHandler(obj);
-//		});
-		$("input, textarea, select").on("input", function (obj) {
+
+		$("#mainform").find("input, textarea, select").on("input", function (obj) {
 		  widgetChangeHandler(obj);
 		});
 
+		setWidgetStateEnableDisable();
 
-
-		$.each(getMapDataObj.mapObj.items, function(key, value ) { 			
-			if(value.hasOwnProperty('depends')){
-				if(value.depends.match(/^boolDepened\(.+,(true|false)\)/)) {
-					var depends = value.depends.match(/^boolDepened\((.+),(true|false)\)$/)[1];
-					var trueFalse = ( value.depends.match(/^boolDepened\((.+),(true|false)\)$/)[2] === 'true');
-					if(getMapDataObj.mapObj.items.hasOwnProperty(depends)){ 
-						if(! getMapDataObj.mapObj.items[depends].hasOwnProperty('dependend')){ 
-							getMapDataObj.mapObj.items[depends].dependend = []; 
-						}
-						getMapDataObj.mapObj.items[depends].dependend.push({"dependend": key, "trueFalse": trueFalse, "type" : "bool"});
-
-
-						if($("#widget-" + depends).is(":checked") ?  trueFalse : !trueFalse) { // inverse exclusive OR
-							$("#widget-" + key).prop( "disabled", false );
-							value.active = true;
-							$("#widget-" + key).removeClass("disabledInput");
-						} else {
-							$("#widget-" + key).prop( "disabled", true );
-							value.active = false;
-							$("#widget-" + key).addClass("disabledInput");
-						}
-
-
-					}
-				}
-			}
+		$.each(getMapDataObj.mapObj.items, function(key, value ) { 
 			value.value = null;
 			value.valid = true;
 			value.active = true;
 		});
 
-
-		$("#spinnerbg").hide();
+		loadConf();
 
 	}
 
 } 
 
 
+function updateWidgetsFromData() {
+	$("#spinnerbg").show();
+	$.each(getMapDataObj.mapObj.items, function(key, value ) {
+		if(value.widget === "text") {
+			$("#widget-" + key).val(value.value);
+		} else if(value.widget === "password") {
+			value.value = "12345678";
+			value.originalvalue = "12345678";
+			$("#widget-" + key).val(value.value);
+		} else if(value.widget === "textarea") {
+			$("#widget-" + key).val(value.value);
+		} else if(value.widget === "checkbox") {
+			$("#widget-" + key).prop("checked",value.value);
+		}
+	});
+	setWidgetStateEnableDisable();
+
+	$("#spinnerbg").hide();
+}
+
+function getcfg(msgObj) {
+	$("#spinnerbg").show();
+
+	msgObj.items.forEach(function (currentItem) {
+		if(getMapDataObj.mapObj.items.hasOwnProperty(currentItem.name)) {
+			getMapDataObj.mapObj.items[currentItem.name].originalvalue = currentItem.value;
+			getMapDataObj.mapObj.items[currentItem.name].value = currentItem.value;
+		}
+		
+	});
+
+
+	updateWidgetsFromData();
+
+	$("#spinnerbg").hide();
+
+}
+
+function loadConf() {
+	$("#spinnerbg").show();
+	var confToGet = new Array();
+	$.each(getMapDataObj.mapObj.items, function(key, value ) {
+    	if(value.omitsend) { return; }
+    	confToGet.push(key);
+	});
+
+	var confGetCMD = { "cmd": "GETCFG", "items": confToGet};
+	wsSend(JSON.stringify(confGetCMD));
+
+	$("#spinnerbg").hide();
+
+}
+
+
+function save() {
+	var itemsToSend = new Array();
+
+	$.each(getMapDataObj.mapObj.items, function(key, value ) {
+		if(value.value !== value.originalvalue && value.relevant) {
+			itemsToSend.push({"name": key, "value": value.value});
+		}
+
+	});
+
+	if(itemsToSend.length > 0) {
+		var setCfgCmd = { "cmd": "SETCFG", "items": itemsToSend};
+		wsSend(JSON.stringify(setCfgCmd));
+	}
+
+
+}
+
+
 function parseIncommingWS(event) {
 	try {
 		var msgObj = JSON.parse(event.data);
-	//	console.log(msgObj);
 		if(msgObj.cmd === "PING" ) {
 			var answer = { "cmd": "PONG"};	
 			wsSend(JSON.stringify(answer));
@@ -248,21 +323,32 @@ function parseIncommingWS(event) {
 				ws.close();
 			},10000);
 		}
-
-		if(msgObj.cmd === "STATUS" || msgObj.cmd === "LOGIN") {
+		if(((msgObj.cmd === "STATUS" && msgObj.hasOwnProperty("auth")))|| msgObj.cmd === "LOGIN") {
 			login(msgObj);
 		}
+
+		if((msgObj.cmd === "STATUS" && msgObj.hasOwnProperty("configdirty"))) {
+			if(msgObj.configdirty) {
+				$("#save-btn").addClass(" ui-state-disabled");
+				loadConf();
+			}
+		}
+
 
 
 		if(msgObj.cmd === "GETMAP" ) {
 			getmap(msgObj);
 		}
 
+		if(msgObj.cmd === "GETCFG" ) {
+			getcfg(msgObj);
+		}
 
 	} catch(e) {
 		console.log("Error", e, event.data);
 	}
 }
+
 
 function connect() {
   ws = new WebSocket("wss://" + location.host + "/ws");
@@ -303,7 +389,8 @@ function wsSend(data) {
 
 
 function setupTabs() {
-	$(".tab-header").first().find('div[class!="direct-link"]').filter('[class!="placeholder"]').each( function(i) {
+//	$(".tab-header").first().find('div[class!="direct-link"]').filter('[class!="placeholder"]').each( function(i) {
+	$(".tab-header").first().find('div:not(.direct-link)').filter('[class!="placeholder"]').each( function(i) {
 		$(this).click(function() {
 			$(".tab-header").first().find(".active").removeClass("active").addClass("inactive");
 			$(this).addClass("active").removeClass("inactive");
@@ -321,8 +408,8 @@ function setupTabs() {
 $( document ).ready(function() {
 	$( "#loginform-form" ).submit(function( event ) {
 		event.preventDefault();
-		var username = $( "#loginform-form" ).find('input[name="username"]').val();
-		var password = $( "#loginform-form" ).find('input[name="password"]').val();
+		var username = $( "#loginform-form" ).find('input[name="login_username"]').val();
+		var password = $( "#loginform-form" ).find('input[name="login_password"]').val();
 		var loginObj = { "cmd": "LOGIN", "username": username, "password" : password};
 		wsSend(JSON.stringify(loginObj));
 		$("#spinnerbg").show();
@@ -334,9 +421,14 @@ $( document ).ready(function() {
 	setupTabs();
 
 
+
 	$("#logout-btn").click(function() {
 		$( "#dialog-logout-confirm" ).dialog( "open" );
-		
+
+	});
+
+	$("#save-btn").click(function() {
+		save();
 	});
 
 	$( "#dialog-logout-confirm" ).dialog({
@@ -350,6 +442,7 @@ $( document ).ready(function() {
 	        	var cmd = { "cmd": "LOGOUT"};
     			wsSend(JSON.stringify(cmd));
 	          	$( this ).dialog( "close" );
+	       		$("#save-btn").addClass(" ui-state-disabled");
 	        },
 	        Cancel: function() {
 	          	$( this ).dialog( "close" );

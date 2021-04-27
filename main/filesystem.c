@@ -75,7 +75,7 @@ esp_err_t mount(void) {
     esp_vfs_spiffs_conf_t conf_etc = {
         .base_path = ETC_MOUNT_POINT,
         .partition_label = "etc",
-        .max_files = RESOURCES_LIST_ETC_FILE_COUNT,
+        .max_files = RESOURCES_LIST_ETC_FILE_COUNT + 5,
         .format_if_mount_failed = false
     };
 

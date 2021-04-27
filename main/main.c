@@ -32,6 +32,7 @@
 #include "staticHttpServer.h"
 #include "websocket.h"
 #include "filesystem.h"
+#include "config.h"
 
 static const char *TAG = "Esp32MotherClock.main";
 
@@ -123,6 +124,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_ERROR_CHECK(mount());
+    ESP_ERROR_CHECK(initConf());
 
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);

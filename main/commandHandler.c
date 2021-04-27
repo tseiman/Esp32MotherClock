@@ -75,7 +75,7 @@ esp_err_t interpreteCmd(char *inputBuffer, size_t inputBufferLen, async_resp_arg
     IF_JSON_CMD("PONG") {
         ESP_LOGI(TAG, "Got PONG Response");
         return ESP_OK;
-    }
+    } /* END PONG */
 
     IF_JSON_CMD("GETSTATUS") {
         ESP_LOGI(TAG, "Got Status Request");
@@ -83,7 +83,7 @@ esp_err_t interpreteCmd(char *inputBuffer, size_t inputBufferLen, async_resp_arg
         CREATE_JSON_BOOL_PARAMETER("auth",statusMsgObj,auth,sessContext->authenticated);
         JSON_TO_DIRECT_ASYNC_CALLBACK(statusMsgObj, "STATUS");
         return ESP_OK;
-    }
+    } /* END GETSTATUS */
 
     IF_JSON_CMD("LOGIN") { 
         ESP_LOGI(TAG, "Got Login");
@@ -99,7 +99,7 @@ esp_err_t interpreteCmd(char *inputBuffer, size_t inputBufferLen, async_resp_arg
         JSON_TO_DIRECT_ASYNC_CALLBACK(loginMsgObj, "LOGIN");
 
         return ESP_OK;
-    }
+    } /* END LOGIN */
 
     IF_JSON_CMD("LOGOUT") { 
         ESP_LOGI(TAG, "Got LOGOUT");
@@ -108,7 +108,7 @@ esp_err_t interpreteCmd(char *inputBuffer, size_t inputBufferLen, async_resp_arg
         CREATE_JSON_BOOL_PARAMETER("auth",loginMsgObj,auth,false);
         JSON_TO_DIRECT_ASYNC_CALLBACK(loginMsgObj, "LOGIN");
         return ESP_OK;
-    }
+    } /* END LOGOUT */
 
     /* all other commands below will require authentication */
     /* so we quit here in case no auth is set for this session */
@@ -183,8 +183,88 @@ esp_err_t interpreteCmd(char *inputBuffer, size_t inputBufferLen, async_resp_arg
 
 
         return ESP_OK;
-    }
+    } /* END GETMAP */
 
+
+     IF_JSON_CMD("GETCFG") {      
+        ESP_LOGI(TAG, "Got GETCFG");
+        CREATE_JSON_COMMAND("GETCFG",assmebledConfMsgObj);
+        cJSON *itemsArray = cJSON_CreateArray();
+        cJSON_AddItemToObject(assmebledConfMsgObj, "items", itemsArray);
+
+        cJSON *items = cJSON_GetObjectItemCaseSensitive(json, "items");
+        cJSON *iterator = NULL;
+
+
+        cJSON_ArrayForEach(iterator, items) {
+
+            if (cJSON_IsString(iterator)) {
+                cJSON *data = getConfByKey(iterator->valuestring);
+                cJSON *itemToBeSend = cJSON_CreateObject();
+                cJSON *itemToBeSendName = cJSON_CreateString(iterator->valuestring);
+                cJSON_AddItemToObject(itemToBeSend, "name", itemToBeSendName);
+
+                cJSON *itemValue; 
+
+                switch(getTypeFromItem(data)) {
+                    case CONF_BOOL_TYPE:
+                        itemValue = cJSON_IsTrue(data) ? cJSON_CreateTrue() : cJSON_CreateFalse(); break;
+                    case CONF_STRING_TYPE:
+                        itemValue = cJSON_CreateString(data->valuestring); break;
+                    case CONF_NUMBER_TYPE:
+                        itemValue = cJSON_CreateNumber(data->valuedouble); break;
+                    case CONF_NULL_TYPE:
+                    default:
+                        itemValue = cJSON_CreateNull(); break;
+                }
+                
+                cJSON_AddItemToObject(itemToBeSend, "value", itemValue);
+                cJSON_AddItemToArray(itemsArray,itemToBeSend);                
+
+            } else {
+                ESP_LOGW(TAG, "strange conf request - no string type");
+            }
+        } /*  END cJSON_ArrayForEach */
+
+        JSON_TO_DIRECT_ASYNC_CALLBACK(assmebledConfMsgObj, "GETCFG");
+        return ESP_OK;
+    } /* END GETCONF */
+
+    IF_JSON_CMD("SETCFG") {
+        cJSON *items = cJSON_GetObjectItemCaseSensitive(json, "items");
+        cJSON *iterator = NULL;
+
+        cJSON_ArrayForEach(iterator, items) { 
+            cJSON *name = cJSON_GetObjectItemCaseSensitive(iterator, "name");
+
+            if (cJSON_IsString(name)) { 
+                cJSON *confKey = getConfByKey(name->valuestring);
+                if(confKey != NULL) {
+                    cJSON *value = cJSON_GetObjectItemCaseSensitive(iterator, "value");
+                    if(value != NULL) {
+                        setConfigByKey(name->valuestring, value);
+                    } else {
+                        ESP_LOGW(TAG, "This key %s seems without value", name->valuestring);
+                        return ESP_FAIL;
+                    }
+                } else {
+                    ESP_LOGW(TAG, "This %s is not in conf database - ignoring it", name->valuestring);
+                     return ESP_FAIL;
+                }
+            } else {
+                ESP_LOGW(TAG, "Odd config key name with wrong data type");
+                return ESP_FAIL;
+            }
+            
+        }
+        commitConf();
+
+        CREATE_JSON_COMMAND("STATUS",statusMsgObj);
+        CREATE_JSON_BOOL_PARAMETER("configdirty",statusMsgObj,auth,true);
+        JSON_TO_DIRECT_ASYNC_CALLBACK(statusMsgObj, "STATUS");
+
+        return ESP_OK;
+    } /* END SETCONF */
 
     return ESP_FAIL;
 }
