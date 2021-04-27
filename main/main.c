@@ -129,6 +129,21 @@ void app_main(void)
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);
 
+
+    if(confToBoolByKey("dhcp")){
+        ESP_LOGI(TAG, "Using DHCP");
+    } else {
+        ESP_LOGI(TAG, "Set static IP");
+        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
+
+        esp_netif_ip_info_t info_t;
+        memset(&info_t, 0, sizeof(esp_netif_ip_info_t));
+        info_t.ip.addr = esp_ip4addr_aton((const char *)confToStringByKey("address"));
+        info_t.gw.addr = esp_ip4addr_aton((const char *)confToStringByKey("gw"));
+        info_t.netmask.addr = esp_ip4addr_aton((const char *)confToStringByKey("netmask"));
+        esp_netif_set_ip_info(eth_netif, &info_t);    
+    }
+
     // Set default handlers to process TCP/IP stuffs
     ESP_ERROR_CHECK(esp_eth_set_default_handlers(eth_netif));
 

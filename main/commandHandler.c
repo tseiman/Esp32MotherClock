@@ -93,7 +93,22 @@ esp_err_t interpreteCmd(char *inputBuffer, size_t inputBufferLen, async_resp_arg
 
         CREATE_JSON_COMMAND("LOGIN",loginMsgObj);
 
-        sessContext->authenticated = (strcmp(username->valuestring,  "admin")  == 0  && strcmp(password->valuestring,  "password")  == 0);
+        char *hashedPW = passwordToHash(password->valuestring);
+        if(hashedPW != NULL) {
+            if(strcmp(username->valuestring, confToStringByKey("username"))  == 0  && strncmp(hashedPW, confToStringByKey("password"),64)  == 0) {
+                ESP_LOGI(TAG, "Successfully authenticated");
+                sessContext->authenticated = true;
+            } else {
+                ESP_LOGW(TAG, "Authentication fail \n hash from user pw: %s \n hash from conf: %s",hashedPW, confToStringByKey("password") );
+                sessContext->authenticated = false;
+            }
+            free(hashedPW);
+        } else { 
+            ESP_LOGE(TAG, "Can't get PW in PW comparison from hash function"); 
+            return ESP_ERR_NO_MEM;
+        }
+
+        
 
         CREATE_JSON_BOOL_PARAMETER("auth",loginMsgObj,auth,sessContext->authenticated);
         JSON_TO_DIRECT_ASYNC_CALLBACK(loginMsgObj, "LOGIN");

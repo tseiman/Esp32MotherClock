@@ -6,6 +6,7 @@
 #include <sys/fcntl.h>
 #include <string.h>
 
+#include "mbedtls/md.h"
 #include "cJSON.h"
 #include "config.h"
 
@@ -15,6 +16,28 @@ static const char *TAG = "Esp32MotherClock.cfg";
 static cJSON *mapJSON = NULL;
 static cJSON *confJSON = NULL;
 
+
+
+char *passwordToHash(char *pw) {
+	unsigned char shaByteResult[32];
+	char *shaHexResult;
+    if((shaHexResult = (char*)calloc(65, sizeof(char))) == NULL) {                                                              
+        ESP_LOGE(TAG, "Can't allocate buffer for hash");
+        return NULL;
+    } 
+    mbedtls_md_context_t ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+    mbedtls_md_init (&ctx);
+    mbedtls_md_setup (&ctx, mbedtls_md_info_from_type (md_type), 0);
+    mbedtls_md_starts (&ctx);
+    mbedtls_md_update (&ctx, (const unsigned char *) pw, strlen (pw));
+    mbedtls_md_finish (&ctx, shaByteResult);
+    mbedtls_md_free (&ctx);
+ 
+    for (int i = 0; i < 32; i++) sprintf (shaHexResult + 2 * i, "%02x", (int) shaByteResult [i]);
+
+    return shaHexResult;
+}
 
 
 int getTypeFromItem(cJSON *item) {
@@ -90,6 +113,7 @@ static cJSON *fileToJSON(char *filename) {
 }
 
 
+
 static esp_err_t initEmptyConf() {
 	ESP_LOGW(TAG, "Init Empty Conf");
 	confJSON = cJSON_CreateObject();
@@ -121,6 +145,15 @@ static esp_err_t initEmptyConf() {
 						confObjItem = cJSON_IsTrue(itemDefault) ? cJSON_CreateTrue() : cJSON_CreateFalse(); 
 						break; 
 					case CONF_STRING_TYPE:
+						if(strncmp(current_key, "password",8) == 0) {	/* special threatment of Passwords, the excepetion is the rule */
+							char *hashedPW = passwordToHash("password");
+							if(hashedPW != NULL) {
+								confObjItem = cJSON_CreateString(hashedPW);
+								free(hashedPW);
+							} else ESP_LOGE(TAG, "Can't set default PW");
+							
+							break;	
+						} 
 						confObjItem = cJSON_CreateString(itemDefault ? itemDefault->valuestring : "");
 						break;
 					case CONF_NUMBER_TYPE:
@@ -138,9 +171,8 @@ static esp_err_t initEmptyConf() {
 	        			return ESP_FAIL;
 	    			}
 					cJSON_AddItemToObject(confJSON, current_key, confObjItem);
-				} else {
-					ESP_LOGW(TAG, "Could not load default value");
-				}
+				} else ESP_LOGW(TAG, "Could not load default value");
+			
 			}
 
     	}
@@ -155,6 +187,37 @@ cJSON *getConfByKey(char * key) {
 	return cJSON_GetObjectItem(confJSON, key);
 
 }
+
+#define GET_BY_KEY_AND_CHECK(TYPE,RETURN) 												\
+	const char *typeName[] = {"Unknown", "Null", "Bool", "String", "Number"}; 	\
+	cJSON *p = getConfByKey(key); 												\
+	if(p == NULL) { 															\
+		ESP_LOGE(TAG, "Unknown %s parameter %s", typeName[TYPE], key);			\
+		return RETURN;															\
+	}																			\
+	if(getTypeFromItem(p) != TYPE) {											\
+		ESP_LOGE(TAG, "Asking to get %s parameter %s for parameter is not %s", typeName[TYPE], key, typeName[TYPE]); \
+		return RETURN;															\
+	}
+
+
+bool confToBoolByKey(char * key) {
+	GET_BY_KEY_AND_CHECK(CONF_BOOL_TYPE, false);
+	return cJSON_IsTrue(p) ? true : false;
+}
+char *confToStringByKey(char * key) {
+	GET_BY_KEY_AND_CHECK(CONF_STRING_TYPE, NULL);
+	return p->valuestring;
+}
+double confToDoubleByKey(char * key) {
+	GET_BY_KEY_AND_CHECK(CONF_NUMBER_TYPE, 0);
+	return p->valuedouble;
+}
+int confToIntByKey(char * key) {
+	GET_BY_KEY_AND_CHECK(CONF_NUMBER_TYPE, 0);
+	return p->valuedouble;
+}
+
 
 
 void setConfigByKey(char *key, cJSON *value) {
@@ -171,6 +234,14 @@ void setConfigByKey(char *key, cJSON *value) {
 			configEntry->type = cJSON_IsTrue(value) ? cJSON_True : cJSON_False;
 			break; 
 		case CONF_STRING_TYPE:
+			if(strncmp(key, "password",8) == 0) {	/* special threatment of Passwords, the excepetion is the rule */
+				char *hashedPW = passwordToHash(value->valuestring);
+				if(hashedPW != NULL) {
+					cJSON_SetValuestring(configEntry, hashedPW);
+					free(hashedPW);
+				} else ESP_LOGE(TAG, "Can't set PW");
+				break;	
+			} 
 			cJSON_SetValuestring(configEntry, value->valuestring);
 			break;
 		case CONF_NUMBER_TYPE:
@@ -190,7 +261,7 @@ esp_err_t initConf(void) {
 		initEmptyConf();
 	}
 
- ESP_LOGI(TAG, "Empty Conf: %s", cJSON_Print(confJSON));
+ 	ESP_LOGI(TAG, "Empty Conf: %s", cJSON_Print(confJSON));
 
 	return ESP_OK;
 }
