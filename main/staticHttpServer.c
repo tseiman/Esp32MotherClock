@@ -27,7 +27,7 @@
 #include "esp_vfs.h"
 #include "esp_spiffs.h"
 
-// #include "httpAuthentication.h"
+#include "config.h"
 
 
 #define HTTPS_SERVER_STACK_SIZE 32767; //16384
@@ -39,7 +39,8 @@
 static char scratch[SCRATCH_BUFSIZE];
 
 static const char *TAG = "Esp32MotherClock.https";
-
+static char *certBuffer = NULL;
+static char *keyBuffer = NULL;
 
 #define REGISTER_STATIC_RESOURCE(NAME,URI) \
 static const httpd_uri_t NAME = { \
@@ -161,6 +162,10 @@ httpd_uri_t common_get_uri = {
 httpd_handle_t start_static_webserver(void) {
     httpd_handle_t server = NULL;
 
+
+
+
+
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server");
 
@@ -169,20 +174,60 @@ httpd_handle_t start_static_webserver(void) {
     conf.httpd.lru_purge_enable = true;
     conf.httpd.uri_match_fn = httpd_uri_match_wildcard;
 //    conf.httpd.max_open_sockets = CONFIG_MCLK_MAX_CLIENTS * 2;
+    char *cert    = confToStringByKey("certificate");
+    char *certkey = confToStringByKey("certificate-key");
+    int cert_len = 0;
+    int certkey_len = 0;
+    if(cert != NULL && certkey != NULL) {
+        cert_len = strnlen(cert,20000) +1;
+        certkey_len = strnlen(certkey,20000) +1;
+    }
 
-    extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
-    extern const unsigned char cacert_pem_end[]   asm("_binary_cacert_pem_end");
-    conf.cacert_pem = cacert_pem_start;
-    conf.cacert_len = cacert_pem_end - cacert_pem_start;
 
-    extern const unsigned char prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
-    extern const unsigned char prvtkey_pem_end[]   asm("_binary_prvtkey_pem_end");
-    conf.prvtkey_pem = prvtkey_pem_start;
-    conf.prvtkey_len = prvtkey_pem_end - prvtkey_pem_start;
+    if((cert_len > 1) && (certkey_len > 1)) {
+        ESP_LOGI(TAG, "Loading certificate from config");
+
+        if((certBuffer = (char*)calloc(cert_len, sizeof(char))) == NULL) {                                                              
+            ESP_LOGE(TAG, "Can't allocate buffer for certificate");
+            return NULL;
+        } 
+        if((keyBuffer = (char*)calloc(certkey_len, sizeof(char))) == NULL) {                                                              
+            ESP_LOGE(TAG, "Can't allocate buffer for private certificate key");
+            free(certBuffer);
+            certBuffer = NULL;
+            return NULL;
+        } 
+
+        replaceEscapes(certBuffer, cert, cert_len);
+        replaceEscapes(keyBuffer, certkey, certkey_len);
+
+
+        conf.cacert_pem = (uint8_t *)certBuffer;
+        conf.cacert_len = cert_len;
+        conf.prvtkey_pem = (uint8_t *)keyBuffer;
+        conf.prvtkey_len = certkey_len;
+
+    } else {
+        ESP_LOGI(TAG, "Loading default certificate");
+        extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
+        extern const unsigned char cacert_pem_end[]   asm("_binary_cacert_pem_end");
+        conf.cacert_pem = cacert_pem_start;
+        conf.cacert_len = cacert_pem_end - cacert_pem_start;
+
+        extern const unsigned char prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
+        extern const unsigned char prvtkey_pem_end[]   asm("_binary_prvtkey_pem_end");
+        conf.prvtkey_pem = prvtkey_pem_start;
+        conf.prvtkey_len = prvtkey_pem_end - prvtkey_pem_start;
+    }
+
 
     esp_err_t ret = httpd_ssl_start(&server, &conf);
     if (ESP_OK != ret) {
         ESP_LOGI(TAG, "Error starting server!");
+        free(certBuffer);
+        free(keyBuffer);
+        certBuffer = NULL;
+        keyBuffer = NULL;
         return NULL;
     }
 
@@ -201,5 +246,7 @@ void registerStaticResources(httpd_handle_t server) {
 
 void stop_static_webserver(httpd_handle_t server) {
     // Stop the httpd server
+    if(certBuffer != NULL) free(certBuffer);
+    if(keyBuffer != NULL) free(keyBuffer);
     httpd_ssl_stop(server);
 }

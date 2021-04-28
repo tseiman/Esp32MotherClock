@@ -16,6 +16,7 @@
 
 
 char *passwordToHash(char *pw);
+void replaceEscapes(char *destination, char *source, size_t len);
 int getTypeFromItem(cJSON *item);
 esp_err_t initConf(void);
 esp_err_t commitConf(void);

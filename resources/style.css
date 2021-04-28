@@ -317,6 +317,9 @@ body {
 .menuselect input,textarea {
 	width: 62%;
 }
+.menuselect textarea {
+	font-size: 0.2em;
+}
 
 .invalidInput {
 	background-color: rgba(255,0,0,0.2);

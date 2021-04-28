@@ -243,7 +243,7 @@ function updateWidgetsFromData() {
 			value.value = "12345678";
 			value.originalvalue = "12345678";
 			$("#widget-" + key).val(value.value);
-		} else if(value.widget === "textarea") {
+		} else if(value.widget === "textbox") {
 			$("#widget-" + key).val(value.value);
 		} else if(value.widget === "checkbox") {
 			$("#widget-" + key).prop("checked",value.value);

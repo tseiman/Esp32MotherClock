@@ -40,6 +40,29 @@ char *passwordToHash(char *pw) {
 }
 
 
+void replaceEscapes(char *destination, char *source, size_t len) {
+    int j = 0;
+    for (int i = 0; i <= len; i++) {
+        if(source[i] == '\\' && source[i +1] == 'n') {
+            destination[j] = '\n';
+            ++j;
+            ++i;
+        } else if (source[i] == '\\' && source[i +1] == 'r') {
+            destination[j] = '\r';
+            ++j;
+            ++i;
+        }  else if (source[i] == '\\' && source[i +1] == 't') {
+            destination[j] = '\t';
+            ++j;
+            ++i;
+        } else {
+            destination[j] = source[i];
+            ++j;
+        }
+    }
+}
+
+
 int getTypeFromItem(cJSON *item) {
 	cJSON *itemType = cJSON_GetObjectItem(item, "type");
 
